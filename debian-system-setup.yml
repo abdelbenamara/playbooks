@@ -1,0 +1,95 @@
+#!/usr/bin/env ansible-playbook
+---
+- name: 'Debian system setup'
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  become: yes
+  tasks:
+
+    - name: 'Update all packages to their latest version'
+      apt:
+        name: "*"
+        state: latest
+        update_cache: yes
+        clean: yes
+
+    - name: 'Install the package "unattended-upgrades"'
+      apt:
+        name: unattended-upgrades
+
+    - name: 'Set the periodic upgrades settings'
+      lineinfile:
+        path: /etc/apt/apt.conf.d/02periodic
+        line: "{{ item }}"
+        create: yes
+      with_items:
+        - 'APT::Periodic::Enable "1";'
+        - 'APT::Periodic::Update-Package-Lists "1";'
+        - 'APT::Periodic::Download-Upgradeable-Packages "1";'
+        - 'APT::Periodic::Unattended-Upgrade "1";'
+        - 'APT::Periodic::AutocleanInterval "1";'
+        - 'APT::Periodic::Verbose "1";'
+
+    - name: 'Set the sshd config settings'
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#+{{ item.key }}"
+        line: "{{ item.key }} {{ item.value }}"
+        create: yes
+      with_items:
+        - { key: 'Port', value: '1252' }
+        - { key: 'PermitRootLogin', value: 'no' }
+        - { key: 'PubkeyAuthentication', value: 'yes' }
+        - { key: 'PasswordAuthentication', value: 'no' }
+        - { key: 'ChallengeResponseAuthentication', value: 'no' }
+
+    - name: 'Restart service ssh'
+      service:
+        name: ssh
+        state: restarted
+
+    - name: 'Install the package "fail2ban"'
+      apt:
+        name: fail2ban
+
+    - name: 'Set the fail2ban jail custom conf settings'
+      lineinfile:
+        path: /etc/fail2ban/jail.d/custom.conf
+        line: "{{ item }}"
+        create: yes
+      with_items:
+        - '[DEFAULT]'
+        - 'bantime = 72h'
+        - 'findtime = 15m'
+        - 'maxretry = 3'
+        - ''
+        - '[sshd]'
+        - 'enabled = true'
+        - 'port = 1252'
+        - 'maxretry = 5'
+
+    - name: 'Restart service fail2ban'
+      service:
+        name: fail2ban
+        state: restarted
+
+    - name: 'Install the package "ufw"'
+      apt:
+        name: ufw
+ 
+    - name: 'Set the ufw allow ssh rule'
+      command:
+        cmd: '/usr/sbin/ufw allow proto tcp to any port 1252 comment "allow-ssh"'
+
+    - name: 'Enable ufw'
+      command:
+        cmd: '/usr/sbin/ufw enable'
+
+    - name: 'Remove useless packages from the cache'
+      apt:
+        autoclean: yes
+
+    - name: 'Remove dependencies that are no longer required'
+      apt:
+        autoremove: yes
