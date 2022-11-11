@@ -14,6 +14,14 @@
         update_cache: yes
         clean: yes
 
+    - name: 'Install the package "vim"'
+      apt:
+        name: vim
+
+    - name: 'Install the package "git"'
+      apt:
+        name: git
+
     - name: 'Install the package "unattended-upgrades"'
       apt:
         name: unattended-upgrades
