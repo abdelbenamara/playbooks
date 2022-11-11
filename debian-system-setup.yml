@@ -92,7 +92,7 @@
 
     - name: 'Enable ufw'
       command:
-        cmd: '/usr/sbin/ufw enable'
+        cmd: '/usr/sbin/ufw --force enable'
 
     - name: 'Remove useless packages from the cache'
       apt:
