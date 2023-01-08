@@ -7,31 +7,56 @@
   become: yes
   tasks:
 
-    - name: 'Update all packages to their latest version'
-      apt:
+    - name: 'Update installed packages'
+      ansible.builtin.apt:
         name: "*"
         state: latest
         update_cache: yes
         clean: yes
 
-    - name: 'Install the package "vim"'
-      apt:
-        name: vim
+    - name: 'Install unattended-upgrades, sudo, libpam-pwquality, and openssh-server packages'
+      ansible.builtin.apt:
+        name:
+          - unattended-upgrades
+          - sudo
+          - libpam-pwquality
+          - openssh-server
 
-    - name: 'Install the package "git"'
-      apt:
-        name: git
+    - name: 'Edit /etc/login.defs'
+      ansible.builtin.lineinfile:
+        path: /etc/login.defs
+        regexp: "^{{ item.key }}"
+        line: "{{ item.key }}\t{{ item.value }}"
+      loop:
+        - { key: 'PASS_MAX_DAYS', value: '30' }
+        - { key: 'PASS_MIN_DAYS', value: '2' }
+        - { key: 'PASS_WARN_AGE', value: '7' }
 
-    - name: 'Install the package "unattended-upgrades"'
-      apt:
-        name: unattended-upgrades
+    - name: 'Edit /etc/pam.d/common-password'
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/common-password
+        insertbefore: '^# and here are more per-package modules'
+        line: "\npassword required pam_pwquality.so minlen=10 ucredit=-1 lcredit=-1 dcredit=-1 maxrepeat=3 reject_username difok=7 enforce_for_root\n"
 
-    - name: 'Set the periodic upgrades settings'
-      lineinfile:
+    - name: 'Edit /etc/sudoers'
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        regexp: "^Defaults(\\s+){{ item.key }}"
+        insertafter: '^Defaults'
+        line: "Defaults\t{{ item.value }}"
+      loop:
+        - { key: 'passwd_tries', value: 'passwd_tries=3' }
+        - { key: 'log_input', value: 'log_input' }
+        - { key: 'log_output', value: 'log_output' }
+        - { key: 'iolog_dir', value: 'iolog_dir="/var/log/sudo"' }
+        - { key: 'requiretty', value: 'requiretty' }
+
+    - name: 'Edit /etc/apt/apt.conf.d/02periodic'
+      ansible.builtin.lineinfile:
         path: /etc/apt/apt.conf.d/02periodic
         line: "{{ item }}"
         create: yes
-      with_items:
+      loop:
         - 'APT::Periodic::Enable "1";'
         - 'APT::Periodic::Update-Package-Lists "1";'
         - 'APT::Periodic::Download-Upgradeable-Packages "1";'
@@ -39,34 +64,50 @@
         - 'APT::Periodic::AutocleanInterval "1";'
         - 'APT::Periodic::Verbose "1";'
 
-    - name: 'Set the sshd config settings'
-      lineinfile:
+    - name: 'Start and enable ssh service'
+      ansible.builtin.service:
+        name: ssh
+        state: started
+        enabled: yes
+
+    - name: 'Edit /etc/ssh/sshd_config'
+      ansible.builtin.lineinfile:
         path: /etc/ssh/sshd_config
         regexp: "^#+{{ item.key }}"
         line: "{{ item.key }} {{ item.value }}"
-        create: yes
-      with_items:
+      loop:
         - { key: 'Port', value: '1252' }
         - { key: 'PermitRootLogin', value: 'no' }
         - { key: 'PubkeyAuthentication', value: 'yes' }
         - { key: 'PasswordAuthentication', value: 'no' }
         - { key: 'ChallengeResponseAuthentication', value: 'no' }
 
-    - name: 'Restart service ssh'
-      service:
+    - name: 'Restart ssh service'
+      ansible.builtin.service:
         name: ssh
         state: restarted
 
-    - name: 'Install the package "fail2ban"'
-      apt:
-        name: fail2ban
+    - name: 'Install vim, git, ufw and fail2ban packages'
+      ansible.builtin.apt:
+        name:
+          - vim
+          - git
+          - ufw
+          - fail2ban
 
-    - name: 'Set the fail2ban jail custom conf settings'
-      lineinfile:
+    - name: 'Enable ufw and allow ssh port'
+      ansible.builtin.command:
+        cmd: "/usr/sbin/ufw {{ item }}"
+      loop:
+        - 'allow proto tcp to any port 1252 comment "allow-ssh"'
+        - '--force enable'
+
+    - name: 'Edit /etc/fail2ban/jail.d/custom.conf'
+      ansible.builtin.lineinfile:
         path: /etc/fail2ban/jail.d/custom.conf
         line: "{{ item }}"
         create: yes
-      with_items:
+      loop:
         - '[DEFAULT]'
         - 'bantime = 72h'
         - 'findtime = 15m'
@@ -77,27 +118,15 @@
         - 'port = 1252'
         - 'maxretry = 5'
 
-    - name: 'Restart service fail2ban'
-      service:
+    - name: 'Restart fail2ban service'
+      ansible.builtin.service:
         name: fail2ban
         state: restarted
 
-    - name: 'Install the package "ufw"'
-      apt:
-        name: ufw
- 
-    - name: 'Set the ufw allow ssh rule'
-      command:
-        cmd: '/usr/sbin/ufw allow proto tcp to any port 1252 comment "allow-ssh"'
-
-    - name: 'Enable ufw'
-      command:
-        cmd: '/usr/sbin/ufw --force enable'
-
     - name: 'Remove useless packages from the cache'
-      apt:
+      ansible.builtin.apt:
         autoclean: yes
 
     - name: 'Remove dependencies that are no longer required'
-      apt:
+      ansible.builtin.apt:
         autoremove: yes
