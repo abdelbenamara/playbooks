@@ -87,20 +87,32 @@
         name: ssh
         state: restarted
 
-    - name: 'Install vim, git, ufw and fail2ban packages'
+    - name: 'Install make, git, vim, ufw and fail2ban packages'
       ansible.builtin.apt:
         name:
-          - vim
+          - make
           - git
+          - vim
           - ufw
           - fail2ban
 
+    - name: 'Download dotfiles'
+      ansible.builtin.git:
+        repo: https://github.com/abdelbenamara/dotfiles.git
+        dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.dotfiles"
+        single_branch: yes
+
+    - name: 'Setup dotfiles'
+      community.general.make:
+        chdir: "{{ lookup('ansible.builtin.env', 'HOME') }}/.dotfiles"
+
     - name: 'Enable ufw and allow ssh port'
-      ansible.builtin.command:
-        cmd: "/usr/sbin/ufw {{ item }}"
-      loop:
-        - 'allow proto tcp to any port 1252 comment "allow-ssh"'
-        - '--force enable'
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        port: 1252
+        comment: 'allow-ssh'
+        state: enabled
 
     - name: 'Edit /etc/fail2ban/jail.d/custom.conf'
       ansible.builtin.lineinfile:
