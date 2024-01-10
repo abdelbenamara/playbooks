@@ -73,7 +73,7 @@
     - name: 'Edit /etc/ssh/sshd_config'
       ansible.builtin.lineinfile:
         path: /etc/ssh/sshd_config
-        regexp: "^#+{{ item.key }}"
+        regexp: "^#?+{{ item.key }}"
         line: "{{ item.key }} {{ item.value }}"
       loop:
         - { key: 'Port', value: '1252' }
